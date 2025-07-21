@@ -17,6 +17,7 @@ export default function ARViewer() {
   const [sessionId] = useState(() => Math.random().toString(36).substr(2, 9))
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const videoRef = useRef<HTMLVideoElement>(null)
   // ImageBitmaps that will be sent to the WebXR hook once they are prepared
   const [trackedImages, setTrackedImages] = useState<{ bitmap: ImageBitmap; width: number }[]>([])
 
@@ -82,8 +83,9 @@ export default function ARViewer() {
     }
     return imageBitmaps
   }
-
-  const { session, onResult, isSupported, error } = useWebXRTracker(trackedImages)
+  const { session, onResult, isSupported, error } = useWebXRTracker(
+    trackedImages                                                                                                        
+  );
 
   // Handle tracking results
   useEffect(() => {
@@ -135,7 +137,8 @@ export default function ARViewer() {
       })
       return
     }
-
+    // Phase 1: get camera
+    startCamera();
     try {
       setIsARActive(true)
       const imageBitmaps = await prepareImageBitmaps()
@@ -150,8 +153,24 @@ export default function ARViewer() {
       })
       setIsARActive(false)
     }
-  }
+  };
 
+  // Phase 2: only after camera is live
+  const handleStartARAfterCamera = async () => {
+    try {
+      const imageBitmaps = await prepareImageBitmaps();
+      setTrackedImages(imageBitmaps);
+      // your useWebXRTracker hook will see new trackedImages and start the session
+    } catch (err) {
+      console.error("Error prepping AR images:", err);
+      toast({
+        title: "AR Error",
+        description: "Failed to load AR markers.",
+        variant: "destructive",
+      });
+      setIsARActive(false);
+    }
+  };
   const stopAR = () => {
     setIsARActive(false)
     setDetectedMarkers(new Set())
@@ -159,6 +178,35 @@ export default function ARViewer() {
       session.end()
     }
   }
+  const startCamera = async () => {
+    try {
+      const constraints = {
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280, max: 1920, min: 640 },
+          height: { ideal: 720, max: 1080, min: 480 },
+        },
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current!.play();
+          setIsARActive(true);       // now we know camera is live
+          toast({ title: "Camera Ready", description: "AR will start now." });
+          // trigger your image‐bitmap prep + XR session start
+          handleStartARAfterCamera();
+        };
+      }
+    } catch (err) {
+      console.error("Camera access failed:", err);
+      toast({
+        title: "Camera Error",
+        description: "Cannot access back camera.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
