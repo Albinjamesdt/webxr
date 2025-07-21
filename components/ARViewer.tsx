@@ -17,6 +17,8 @@ export default function ARViewer() {
   const [sessionId] = useState(() => Math.random().toString(36).substr(2, 9))
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  // ImageBitmaps that will be sent to the WebXR hook once they are prepared
+  const [trackedImages, setTrackedImages] = useState<{ bitmap: ImageBitmap; width: number }[]>([])
 
   // Fetch markers on component mount
   useEffect(() => {
@@ -73,7 +75,6 @@ export default function ARViewer() {
         imageBitmaps.push({
           bitmap,
           width: marker.physical_width,
-          markerId: marker.id,
         })
       } catch (error) {
         console.error(`Error loading image for marker ${marker.id}:`, error)
@@ -82,12 +83,7 @@ export default function ARViewer() {
     return imageBitmaps
   }
 
-  const { session, onResult, isSupported, error } = useWebXRTracker(
-    markers.map((m) => ({
-      bitmap: null, // Will be set by prepareImageBitmaps
-      width: m.physical_width,
-    })),
-  )
+  const { session, onResult, isSupported, error } = useWebXRTracker(trackedImages)
 
   // Handle tracking results
   useEffect(() => {
@@ -143,7 +139,8 @@ export default function ARViewer() {
     try {
       setIsARActive(true)
       const imageBitmaps = await prepareImageBitmaps()
-      // WebXR session will be handled by the hook
+      setTrackedImages(imageBitmaps)
+      // WebXR session will be handled by the hook once trackedImages state updates
     } catch (error) {
       console.error("Error starting AR:", error)
       toast({
