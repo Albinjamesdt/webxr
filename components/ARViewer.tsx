@@ -13,6 +13,7 @@ export default function ARViewer() {
   const [markers, setMarkers] = useState<Marker[]>([])
   const [loading, setLoading] = useState(true)
   const [isARActive, setIsARActive] = useState(false)
+  const [cameraReady, setCameraReady] = useState(false)
   const [detectedMarkers, setDetectedMarkers] = useState<Set<string>>(new Set())
   const [sessionId] = useState(() => Math.random().toString(36).substr(2, 9))
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -126,7 +127,11 @@ export default function ARViewer() {
         }
       }
     })
-  }, [session, markers, detectedMarkers])
+    // when XR session is established, mark AR active
+    if (session && !isARActive) {
+      setIsARActive(true)
+    }
+  }, [session, markers, detectedMarkers, isARActive])
 
   const startAR = async () => {
     if (markers.length === 0) {
@@ -192,8 +197,8 @@ export default function ARViewer() {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current!.play();
-          setIsARActive(true);       // now we know camera is live
-          toast({ title: "Camera Ready", description: "AR will start now." });
+          setCameraReady(true);
+          toast({ title: "Camera Ready", description: "Camera feed started." });
           // trigger your image‐bitmap prep + XR session start
           handleStartARAfterCamera();
         };
@@ -241,6 +246,26 @@ export default function ARViewer() {
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden">
+      {/* Camera Preview */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          objectFit: "cover",
+          objectPosition: "center center",
+          zIndex: isARActive ? 0 : 1,
+          display: cameraReady && !isARActive ? "block" : "none",
+          transform: "translateZ(0)",
+          backfaceVisibility: "hidden",
+        }}
+      />
+
       {/* AR Canvas */}
       <canvas ref={canvasRef} className="ar-canvas" style={{ display: isARActive ? "block" : "none" }} />
 
